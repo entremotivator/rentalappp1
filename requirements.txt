@@ -1,0 +1,17 @@
+pandas
+datetime
+numpy
+plotly
+matplotlib
+uuid
+seaborn
+requests
+wordpress_auth
+supabase
+datetime
+
+woocommerce
+flask
+flask-cors
+streamlit
+
