@@ -15,8 +15,9 @@ st.set_page_config(page_title="Property Search", page_icon="🏠")
 initialize_auth_state()
 
 # Check if user is authenticated
-if st.session_state.user is None:
+if st.session_state.user is None or not st.session_state.get("authenticated", False):
     st.warning("Please log in from the main page to access this feature.")
+    st.info("If you're having trouble logging in, please check that your email address matches your purchase records.")
     st.stop()
 
 st.title("🏠 Property Search")
@@ -27,7 +28,13 @@ with st.sidebar:
     st.subheader("Account Info")
     user_email = st.session_state.user.email
     user_id = st.session_state.user.id
-    queries_used = get_user_usage(user_id, user_email)
+    
+    # Safe database call with error handling
+    try:
+        queries_used = get_user_usage(user_id, user_email)
+    except Exception as e:
+        st.warning("⚠️ Unable to load usage data")
+        queries_used = 0  # Default to 0 if database error
     
     st.metric("Email", user_email)
     st.metric("Queries Used", f"{queries_used}/30")
@@ -69,11 +76,16 @@ if st.button("🔍 Search Property", type="primary", use_container_width=True):
     if not address:
         st.error("Please enter a property address.")
     else:
-        with st.spinner("Searching property data..."):
-            # Fetch property details (returns JSON array format)
-            property_data = fetch_property_details(address, user_id, user_email)
-            
-            if property_data and len(property_data) > 0:
+        # Check query limit before making API call
+        if queries_used >= 30:
+            st.error("❌ You have reached your query limit of 30 searches. Please contact support to increase your limit.")
+        else:
+            with st.spinner("Searching property data..."):
+                try:
+                    # Fetch property details (returns JSON array format)
+                    property_data = fetch_property_details(address, user_id, user_email)
+                    
+                    if property_data and len(property_data) > 0:
                 st.success("✅ Property data retrieved successfully!")
                 
                 # Get the first property from the array
