@@ -37,6 +37,26 @@ with st.sidebar:
     elif queries_used >= 25:
         st.warning("⚠️ Approaching limit!")
 
+# Helper function to format currency
+def format_currency(value):
+    if value is None or value == "N/A":
+        return "N/A"
+    try:
+        return f"${int(value):,}"
+    except (ValueError, TypeError):
+        return str(value)
+
+# Helper function to format date
+def format_date(date_str):
+    if date_str is None:
+        return "N/A"
+    try:
+        from datetime import datetime
+        date_obj = datetime.fromisoformat(date_str.replace('Z', '+00:00'))
+        return date_obj.strftime("%B %d, %Y")
+    except:
+        return str(date_str)
+
 # Main content
 st.subheader("🔍 Search Property")
 address = st.text_input(
@@ -50,22 +70,50 @@ if st.button("🔍 Search Property", type="primary", use_container_width=True):
         st.error("Please enter a property address.")
     else:
         with st.spinner("Searching property data..."):
-            # Fetch property details (no market data)
+            # Fetch property details (returns JSON array format)
             property_data = fetch_property_details(address, user_id, user_email)
             
-            if property_data:
+            if property_data and len(property_data) > 0:
                 st.success("✅ Property data retrieved successfully!")
                 
+                # Get the first property from the array
+                prop = property_data[0]
+                
                 # Display property information in organized tabs
-                tab1, tab2 = st.tabs(["🏠 Property Details", "📋 JSON Data"])
+                tab1, tab2, tab3, tab4, tab5 = st.tabs([
+                    "🏠 Basic Info", 
+                    "🏗️ Property Details", 
+                    "💰 Financial Data", 
+                    "👤 Owner Info", 
+                    "📋 Raw JSON"
+                ])
                 
                 with tab1:
-                    if "properties" in property_data and property_data["properties"]:
-                        prop = property_data["properties"][0]
-                        
-                        # Basic property info
-                        st.subheader("Basic Information")
+                    st.markdown("### 🏠 Basic Property Information")
+                    
+                    # Address Card
+                    with st.container():
+                        st.markdown("**📍 Address Information**")
                         col1, col2, col3 = st.columns(3)
+                        
+                        with col1:
+                            st.metric("Address", prop.get("formattedAddress", "N/A"))
+                            st.metric("City", prop.get("city", "N/A"))
+                        
+                        with col2:
+                            st.metric("State", prop.get("state", "N/A"))
+                            st.metric("ZIP Code", prop.get("zipCode", "N/A"))
+                        
+                        with col3:
+                            st.metric("County", prop.get("county", "N/A"))
+                            st.metric("County FIPS", prop.get("countyFips", "N/A"))
+                        
+                        st.markdown("---")
+                    
+                    # Basic Property Stats
+                    with st.container():
+                        st.markdown("**🏠 Property Specifications**")
+                        col1, col2, col3, col4 = st.columns(4)
                         
                         with col1:
                             st.metric("Property Type", prop.get("propertyType", "N/A"))
@@ -73,120 +121,183 @@ if st.button("🔍 Search Property", type="primary", use_container_width=True):
                         
                         with col2:
                             st.metric("Bathrooms", prop.get("bathrooms", "N/A"))
-                            st.metric("Square Feet", prop.get("squareFootage", "N/A"))
+                            st.metric("Square Footage", f"{prop.get('squareFootage', 'N/A'):,}" if prop.get('squareFootage') else "N/A")
                         
                         with col3:
+                            st.metric("Lot Size", f"{prop.get('lotSize', 'N/A'):,} sq ft" if prop.get('lotSize') else "N/A")
                             st.metric("Year Built", prop.get("yearBuilt", "N/A"))
-                            st.metric("Lot Size", prop.get("lotSize", "N/A"))
                         
-                        # Address information
-                        if "address" in prop:
-                            addr = prop["address"]
-                            st.subheader("Address Details")
-                            st.text(f"{addr.get('line1', '')} {addr.get('line2', '')}")
-                            st.text(f"{addr.get('city', '')}, {addr.get('state', '')} {addr.get('zipCode', '')}")
+                        with col4:
+                            st.metric("Assessor ID", prop.get("assessorID", "N/A"))
+                            st.metric("Zoning", prop.get("zoning", "N/A"))
+                
+                with tab2:
+                    st.markdown("### 🏗️ Detailed Property Features")
+                    
+                    # Features Card
+                    if "features" in prop and prop["features"]:
+                        features = prop["features"]
                         
-                        # Financial information
-                        st.subheader("Estimated Values")
+                        with st.container():
+                            st.markdown("**🏗️ Architectural Features**")
+                            col1, col2, col3 = st.columns(3)
+                            
+                            with col1:
+                                st.metric("Architecture", features.get("architectureType", "N/A"))
+                                st.metric("Exterior", features.get("exteriorType", "N/A"))
+                                st.metric("Roof Type", features.get("roofType", "N/A"))
+                            
+                            with col2:
+                                st.metric("Foundation", features.get("foundationType", "N/A"))
+                                st.metric("Floor Count", features.get("floorCount", "N/A"))
+                                st.metric("Room Count", features.get("roomCount", "N/A"))
+                            
+                            with col3:
+                                st.metric("Unit Count", features.get("unitCount", "N/A"))
+                                st.metric("Fireplace", "Yes" if features.get("fireplace") else "No")
+                                st.metric("Fireplace Type", features.get("fireplaceType", "N/A"))
+                            
+                            st.markdown("---")
+                        
+                        with st.container():
+                            st.markdown("**🌡️ Climate & Utilities**")
+                            col1, col2, col3 = st.columns(3)
+                            
+                            with col1:
+                                st.metric("Heating", "Yes" if features.get("heating") else "No")
+                                st.metric("Heating Type", features.get("heatingType", "N/A"))
+                            
+                            with col2:
+                                st.metric("Cooling", "Yes" if features.get("cooling") else "No")
+                                st.metric("Cooling Type", features.get("coolingType", "N/A"))
+                            
+                            with col3:
+                                st.metric("Garage", "Yes" if features.get("garage") else "No")
+                                st.metric("Garage Spaces", features.get("garageSpaces", "N/A"))
+                            
+                            st.markdown("---")
+                    
+                    # Additional Info
+                    with st.container():
+                        st.markdown("**📋 Additional Information**")
                         col1, col2 = st.columns(2)
                         
                         with col1:
-                            if "rentEstimate" in prop:
-                                rent_est = prop["rentEstimate"]
-                                st.metric("Rent Estimate", f"${rent_est.get('rent', 'N/A'):,}/month")
+                            st.metric("Legal Description", prop.get("legalDescription", "N/A"))
                         
                         with col2:
-                            if "valueEstimate" in prop:
-                                value_est = prop["valueEstimate"]
-                                st.metric("Property Value", f"${value_est.get('value', 'N/A'):,}")
-                    else:
-                        st.warning("No property details found for this address.")
+                            st.metric("Subdivision", prop.get("subdivision", "N/A"))
                 
-                with tab2:
-                    # Display JSON data in a card
+                with tab3:
+                    st.markdown("### 💰 Financial Information")
+                    
+                    # Sale History Card
                     with st.container():
-                        st.subheader("📋 Complete JSON Response")
+                        st.markdown("**💵 Sale Information**")
+                        col1, col2 = st.columns(2)
                         
-                        # Create a card-like appearance using markdown and containers
-                        with st.expander("View Raw JSON Data", expanded=True):
-                            # Pretty print JSON with syntax highlighting
-                            json_str = json.dumps(property_data, indent=2)
-                            st.code(json_str, language='json')
+                        with col1:
+                            st.metric("Last Sale Date", format_date(prop.get("lastSaleDate")))
                         
-                        # Alternative card display with key information
-                        if "properties" in property_data and property_data["properties"]:
-                            st.subheader("📊 Key Data Points")
-                            prop = property_data["properties"][0]
+                        with col2:
+                            st.metric("Last Sale Price", format_currency(prop.get("lastSalePrice")))
+                        
+                        st.markdown("---")
+                    
+                    # Tax Assessments
+                    if "taxAssessments" in prop and prop["taxAssessments"]:
+                        st.markdown("**📊 Tax Assessments History**")
+                        
+                        assessments = prop["taxAssessments"]
+                        assessment_data = []
+                        
+                        for year, data in assessments.items():
+                            assessment_data.append({
+                                "Year": year,
+                                "Total Value": format_currency(data.get("value")),
+                                "Land Value": format_currency(data.get("land")),
+                                "Improvements": format_currency(data.get("improvements"))
+                            })
+                        
+                        if assessment_data:
+                            df = pd.DataFrame(assessment_data)
+                            st.dataframe(df, use_container_width=True)
+                        
+                        st.markdown("---")
+                    
+                    # Property Taxes
+                    if "propertyTaxes" in prop and prop["propertyTaxes"]:
+                        st.markdown("**🏛️ Property Taxes History**")
+                        
+                        taxes = prop["propertyTaxes"]
+                        tax_data = []
+                        
+                        for year, data in taxes.items():
+                            tax_data.append({
+                                "Year": year,
+                                "Total Tax": format_currency(data.get("total"))
+                            })
+                        
+                        if tax_data:
+                            df = pd.DataFrame(tax_data)
+                            st.dataframe(df, use_container_width=True)
+                
+                with tab4:
+                    st.markdown("### 👤 Owner Information")
+                    
+                    if "owner" in prop and prop["owner"]:
+                        owner = prop["owner"]
+                        
+                        with st.container():
+                            st.markdown("**👤 Owner Details**")
+                            col1, col2 = st.columns(2)
                             
-                            # Create info cards
-                            cards_data = []
+                            with col1:
+                                names = owner.get("names", [])
+                                st.metric("Owner Name(s)", ", ".join(names) if names else "N/A")
+                                st.metric("Owner Type", owner.get("type", "N/A"))
                             
-                            # Basic info card
-                            basic_info = {
-                                "Category": "Basic Information",
-                                "Data": {
-                                    "Property Type": prop.get("propertyType", "N/A"),
-                                    "Bedrooms": prop.get("bedrooms", "N/A"),
-                                    "Bathrooms": prop.get("bathrooms", "N/A"),
-                                    "Square Feet": prop.get("squareFootage", "N/A"),
-                                    "Year Built": prop.get("yearBuilt", "N/A"),
-                                    "Lot Size": prop.get("lotSize", "N/A")
-                                }
-                            }
+                            with col2:
+                                st.metric("Owner Occupied", "Yes" if prop.get("ownerOccupied") else "No")
                             
-                            # Address info card
-                            if "address" in prop:
-                                addr = prop["address"]
-                                address_info = {
-                                    "Category": "Address Information",
-                                    "Data": {
-                                        "Line 1": addr.get("line1", "N/A"),
-                                        "Line 2": addr.get("line2", "N/A"),
-                                        "City": addr.get("city", "N/A"),
-                                        "State": addr.get("state", "N/A"),
-                                        "ZIP Code": addr.get("zipCode", "N/A"),
-                                        "County": addr.get("county", "N/A")
-                                    }
-                                }
-                                cards_data.append(address_info)
+                            st.markdown("---")
+                        
+                        # Mailing Address
+                        if "mailingAddress" in owner and owner["mailingAddress"]:
+                            mailing = owner["mailingAddress"]
                             
-                            # Financial info card
-                            financial_info = {"Category": "Financial Estimates", "Data": {}}
-                            if "rentEstimate" in prop:
-                                rent_est = prop["rentEstimate"]
-                                financial_info["Data"]["Rent Estimate"] = f"${rent_est.get('rent', 'N/A'):,}/month"
-                                financial_info["Data"]["Rent Range Low"] = f"${rent_est.get('rentRangeLow', 'N/A'):,}/month"
-                                financial_info["Data"]["Rent Range High"] = f"${rent_est.get('rentRangeHigh', 'N/A'):,}/month"
-                            
-                            if "valueEstimate" in prop:
-                                value_est = prop["valueEstimate"]
-                                financial_info["Data"]["Property Value"] = f"${value_est.get('value', 'N/A'):,}"
-                                financial_info["Data"]["Value Range Low"] = f"${value_est.get('valueRangeLow', 'N/A'):,}"
-                                financial_info["Data"]["Value Range High"] = f"${value_est.get('valueRangeHigh', 'N/A'):,}"
-                            
-                            if financial_info["Data"]:
-                                cards_data.append(financial_info)
-                            
-                            cards_data.insert(0, basic_info)
-                            
-                            # Display cards
-                            for card in cards_data:
-                                with st.container():
-                                    st.markdown(f"**{card['Category']}**")
-                                    
-                                    # Create columns for the card data
-                                    if len(card['Data']) <= 3:
-                                        cols = st.columns(len(card['Data']))
-                                    else:
-                                        cols = st.columns(3)
-                                    
-                                    items = list(card['Data'].items())
-                                    for i, (key, value) in enumerate(items):
-                                        col_idx = i % len(cols)
-                                        with cols[col_idx]:
-                                            st.metric(key, value)
-                                    
-                                    st.markdown("---")
+                            with st.container():
+                                st.markdown("**📮 Mailing Address**")
+                                col1, col2, col3 = st.columns(3)
+                                
+                                with col1:
+                                    st.metric("Address", mailing.get("formattedAddress", "N/A"))
+                                
+                                with col2:
+                                    st.metric("City", mailing.get("city", "N/A"))
+                                
+                                with col3:
+                                    st.metric("State & ZIP", f"{mailing.get('state', 'N/A')} {mailing.get('zipCode', '')}")
+                
+                with tab5:
+                    st.markdown("### 📋 Raw JSON Data")
+                    
+                    # Display complete JSON in expandable card
+                    with st.expander("View Complete Property JSON", expanded=False):
+                        json_str = json.dumps(property_data, indent=2)
+                        st.code(json_str, language='json')
+                    
+                    # Property coordinates for mapping (if needed later)
+                    if prop.get("latitude") and prop.get("longitude"):
+                        st.markdown("**📍 Geographic Coordinates**")
+                        col1, col2 = st.columns(2)
+                        
+                        with col1:
+                            st.metric("Latitude", prop.get("latitude"))
+                        
+                        with col2:
+                            st.metric("Longitude", prop.get("longitude"))
+            
             else:
                 st.error("❌ No property data found. Please check the address and try again.")
 
@@ -201,4 +312,4 @@ st.markdown("""
 """)
 
 # Usage info
-st.info("ℹ️ This search only includes property data. Market data has been disabled to optimize performance.")
+st.info("ℹ️ This search provides comprehensive property data including ownership, tax history, and detailed property features.")
