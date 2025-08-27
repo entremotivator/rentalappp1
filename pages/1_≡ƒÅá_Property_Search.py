@@ -11,61 +11,80 @@ from streamlit.components.v1 import html
 
 st.set_page_config(page_title="Property Search", page_icon="🏠", layout="wide")
 
-# Initialize auth state
+# =====================================================
+# 1. Initialize & Auth
+# =====================================================
 initialize_auth_state()
 
-# Check if user is authenticated
 if st.session_state.user is None:
-    st.warning("Please log in from the main page to access this feature.")
+    st.warning("⚠️ Please log in from the main page to access this feature.")
     st.stop()
 
-st.title("🏠 Property Search")
-st.markdown("Search for detailed property information with a clean card layout.")
+user_email = st.session_state.user.email
+user_id = st.session_state.user.id
 
-# Sidebar with user info
+# =====================================================
+# 2. Sidebar (Usage / Limits)
+# =====================================================
 with st.sidebar:
-    st.subheader("Account Info")
-    user_email = st.session_state.user.email
-    user_id = st.session_state.user.id
+    st.subheader("👤 Account Info")
     queries_used = get_user_usage(user_id, user_email)
-    
+
     st.metric("Email", user_email)
     st.metric("Queries Used", f"{queries_used}/30")
-    
+
     if queries_used >= 30:
         st.error("🚫 Query limit reached!")
     elif queries_used >= 25:
         st.warning("⚠️ Approaching limit!")
 
-# Search
+
+# =====================================================
+# 3. Search Form
+# =====================================================
+st.title("🏠 Property Search")
+st.markdown("Retrieve detailed property information with a clean, card-based layout.")
+
 address = st.text_input(
     "Enter Property Address",
     placeholder="e.g., 123 Main St, New York, NY 10001",
     help="Enter a complete address for best results"
 )
 
+
+# =====================================================
+# 4. Helper: Build Card HTML
+# =====================================================
+def build_card(title: str, content: str) -> str:
+    return f"""
+    <div class="card">
+        <h3>{title}</h3>
+        <div class="content">{content}</div>
+    </div>
+    """
+
+
+# =====================================================
+# 5. Property Search Logic
+# =====================================================
 if st.button("🔍 Search Property", type="primary", use_container_width=True):
     if not address:
-        st.error("Please enter a property address.")
+        st.error("❌ Please enter a property address.")
     else:
-        with st.spinner("Searching property data..."):
-            property_data = fetch_property_details(address, user_id, user_email)
+        with st.spinner("🔎 Fetching property data..."):
+            try:
+                property_data = fetch_property_details(address, user_id, user_email)
 
-            if property_data and "properties" in property_data:
+                if not property_data or "properties" not in property_data:
+                    st.error("⚠️ No property data found.")
+                    st.stop()
+
                 prop = property_data["properties"][0]
-
-                # Convert to JSON string for rendering
                 pretty_json = json.dumps(prop, indent=2)
 
-                # Build HTML cards dynamically
-                def build_card(title, content):
-                    return f"""
-                    <div class="card">
-                        <h3>{title}</h3>
-                        <div class="content">{content}</div>
-                    </div>
-                    """
-
+                # =====================================================
+                # Build Cards
+                # =====================================================
                 cards_html = ""
 
                 # Basic Info
@@ -85,18 +104,22 @@ if st.button("🔍 Search Property", type="primary", use_container_width=True):
 
                 # Features
                 if "features" in prop:
-                    features_html = "<br>".join([f"<b>{k}:</b> {v}" for k,v in prop["features"].items()])
+                    feat = prop["features"]
+                    features_html = "<br>".join([f"<b>{k}:</b> {v}" for k,v in feat.items()])
                     cards_html += build_card("🔧 Features", features_html)
 
-                # Taxes
+                # Property Taxes
                 if "propertyTaxes" in prop:
-                    tax_html = "<br>".join([f"<b>{year}:</b> ${data['total']}" for year, data in prop["propertyTaxes"].items()])
+                    tax_html = "<br>".join([
+                        f"<b>{year}:</b> ${data['total']:,}" 
+                        for year, data in prop["propertyTaxes"].items()
+                    ])
                     cards_html += build_card("💰 Property Taxes", tax_html)
 
                 # Tax Assessments
                 if "taxAssessments" in prop:
                     assess_html = "<br>".join([
-                        f"<b>{year}:</b> Total {data['value']} (Land {data['land']}, Improvements {data['improvements']})"
+                        f"<b>{year}:</b> Total {data['value']:,} (Land {data['land']:,}, Improvements {data['improvements']:,})"
                         for year, data in prop["taxAssessments"].items()
                     ])
                     cards_html += build_card("📊 Tax Assessments", assess_html)
@@ -104,46 +127,59 @@ if st.button("🔍 Search Property", type="primary", use_container_width=True):
                 # History
                 if "history" in prop:
                     hist_html = "<br>".join([
-                        f"<b>{h['event']}:</b> {h['date']} for ${h['price']}" 
+                        f"<b>{h['event']}:</b> {h['date']} for ${h['price']:,}"
                         for h in prop["history"].values()
                     ])
                     cards_html += build_card("📜 History", hist_html)
 
-                # Owner
+                # Owner Info
                 if "owner" in prop:
+                    owner = prop["owner"]
                     owner_html = f"""
-                    <b>Owner:</b> {", ".join(prop["owner"].get("names", []))}<br>
-                    <b>Type:</b> {prop["owner"].get("type","N/A")}<br>
-                    <b>Mailing Address:</b> {prop["owner"].get("mailingAddress",{}).get("formattedAddress","N/A")}
+                    <b>Owner:</b> {", ".join(owner.get("names", []))}<br>
+                    <b>Type:</b> {owner.get("type","N/A")}<br>
+                    <b>Mailing Address:</b> {owner.get("mailingAddress",{}).get("formattedAddress","N/A")}
                     """
                     cards_html += build_card("👤 Owner Info", owner_html)
 
                 # Raw JSON
                 cards_html += build_card("📋 Raw JSON", f"<pre>{pretty_json}</pre>")
 
-                # Full HTML + CSS
+                # =====================================================
+                # Render Final Layout
+                # =====================================================
                 full_html = f"""
                 <style>
-                    .card {{
-                        background: #fff;
-                        padding: 20px;
-                        margin: 15px;
-                        border-radius: 12px;
-                        box-shadow: 0 2px 6px rgba(0,0,0,0.1);
-                        flex: 1 1 300px;
-                    }}
-                    .card h3 {{
-                        margin-top: 0;
+                    body {{
+                        font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
                         color: #2c3e50;
-                    }}
-                    .content {{
-                        font-size: 14px;
-                        line-height: 1.5;
                     }}
                     .container {{
                         display: flex;
                         flex-wrap: wrap;
                         justify-content: flex-start;
+                    }}
+                    .card {{
+                        background: #fff;
+                        padding: 20px;
+                        margin: 15px;
+                        border-radius: 12px;
+                        box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+                        flex: 1 1 320px;
+                        transition: transform 0.2s ease, box-shadow 0.2s ease;
+                    }}
+                    .card:hover {{
+                        transform: translateY(-4px);
+                        box-shadow: 0 6px 16px rgba(0,0,0,0.15);
+                    }}
+                    .card h3 {{
+                        margin-top: 0;
+                        color: #34495e;
+                        font-size: 18px;
+                    }}
+                    .content {{
+                        font-size: 14px;
+                        line-height: 1.6;
                     }}
                     pre {{
                         white-space: pre-wrap;
@@ -151,24 +187,27 @@ if st.button("🔍 Search Property", type="primary", use_container_width=True):
                         background: #f7f7f7;
                         padding: 10px;
                         border-radius: 8px;
+                        font-size: 12px;
                     }}
                 </style>
                 <div class="container">
                     {cards_html}
                 </div>
                 """
+                html(full_html, height=900, scrolling=True)
 
-                html(full_html, height=800, scrolling=True)
+            except Exception as e:
+                st.error(f"❌ Error fetching property data: {str(e)}")
 
-            else:
-                st.error("No property data found for this address.")
 
-# Helpful tips
+# =====================================================
+# 6. Helpful Tips
+# =====================================================
 st.markdown("---")
 st.subheader("💡 Tips for Better Results")
 st.markdown("""
-- Include the full address with city, state, and ZIP code  
-- Use standard address formatting (e.g., "123 Main St, New York, NY 10001")  
-- Check spelling of street names and city names  
-- For apartments, include unit numbers when possible  
+- Include the **full address** with city, state, and ZIP code  
+- Use standard address formatting (e.g., `123 Main St, New York, NY 10001`)  
+- Double-check spelling of **street/city names**  
+- For apartments/condos, include **unit numbers** if possible  
 """)
