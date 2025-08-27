@@ -6,7 +6,7 @@ import streamlit as st
 import json
 import pandas as pd
 from utils.auth import initialize_auth_state
-from utils.rentcast_api import fetch_property_details
+from utils.rentcast_api import fetch_property_details, get_market_data
 from utils.database import get_user_usage
 
 st.set_page_config(page_title="Property Search", page_icon="🏠")
@@ -15,13 +15,12 @@ st.set_page_config(page_title="Property Search", page_icon="🏠")
 initialize_auth_state()
 
 # Check if user is authenticated
-if st.session_state.user is None or not st.session_state.get("authenticated", False):
+if st.session_state.user is None:
     st.warning("Please log in from the main page to access this feature.")
-    st.info("If you're having trouble logging in, please check that your email address matches your purchase records.")
     st.stop()
 
 st.title("🏠 Property Search")
-st.markdown("Search for detailed property information and analytics.")
+st.markdown("Search for detailed property information and market analytics.")
 
 # User info sidebar
 with st.sidebar:
@@ -63,6 +62,16 @@ def format_date(date_str):
         return date_obj.strftime("%B %d, %Y")
     except:
         return str(date_str)
+
+# Helper function to safely get nested values
+def safe_get(data, keys, default="N/A"):
+    """Safely get nested dictionary values"""
+    try:
+        for key in keys:
+            data = data[key]
+        return data if data is not None else default
+    except (KeyError, TypeError, IndexError):
+        return default
 
 # Main content
 st.subheader("🔍 Search Property")
