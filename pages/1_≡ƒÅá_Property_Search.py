@@ -105,7 +105,7 @@ def process_property_data(raw_data):
             except json.JSONDecodeError as e:
                 logger.error(f"JSON decode error: {e}")
                 return None
-        elif isinstance(raw_data, dict):
+        elif isinstance(raw_data, (dict, list)):
             property_data = raw_data
         else:
             logger.error(f"Unexpected data type: {type(raw_data)}")
@@ -118,21 +118,28 @@ def process_property_data(raw_data):
             
         # Handle different API response structures
         properties = None
-        if "properties" in property_data:
-            properties = property_data["properties"]
-        elif "data" in property_data:
-            properties = property_data["data"]
-        elif isinstance(property_data, list):
+        
+        # Case 1: Direct list of properties (like your API response)
+        if isinstance(property_data, list) and len(property_data) > 0:
             properties = property_data
-        elif isinstance(property_data, dict) and any(key in property_data for key in ["address", "propertyType", "bedrooms"]):
-            # Single property object
+        # Case 2: Dictionary with "properties" key
+        elif isinstance(property_data, dict) and "properties" in property_data:
+            properties = property_data["properties"]
+        # Case 3: Dictionary with "data" key
+        elif isinstance(property_data, dict) and "data" in property_data:
+            properties = property_data["data"]
+        # Case 4: Single property object (has property-like keys)
+        elif isinstance(property_data, dict) and any(key in property_data for key in ["formattedAddress", "propertyType", "bedrooms", "id"]):
             properties = [property_data]
         
         if not properties or len(properties) == 0:
             logger.error("No properties found in response")
             return None
             
-        return properties[0]  # Return first property
+        # Return the first property
+        first_property = properties[0]
+        logger.info(f"Successfully processed property: {first_property.get('formattedAddress', 'Unknown Address')}")
+        return first_property
         
     except Exception as e:
         logger.error(f"Error processing property data: {e}")
