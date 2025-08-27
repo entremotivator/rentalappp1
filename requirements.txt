@@ -9,7 +9,7 @@ requests
 wordpress_auth
 supabase
 datetime
-
+psycopg2-binary
 woocommerce
 flask
 flask-cors
